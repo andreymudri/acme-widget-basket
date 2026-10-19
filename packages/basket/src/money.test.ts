@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { assertCents, formatCents, percentOfFloor } from "./money";
 
@@ -34,6 +37,15 @@ describe("formatCents", () => {
   it("formats whole dollars and large amounts exactly", () => {
     expect(formatCents(100)).toBe("$1.00");
     expect(formatCents(123456789)).toBe("$1,234,567.89");
+  });
+
+  it("formats other two-digit currencies", () => {
+    expect(formatCents(3785, "EUR")).toBe("€37.85");
+    expect(formatCents(3785, "USD")).toBe("$37.85");
+  });
+
+  it.each(["JPY", "KWD"])("rejects %s, whose minor unit is not cents", (currency) => {
+    expect(() => formatCents(3785, currency)).toThrow(RangeError);
   });
 
   it("rejects values that are not cents", () => {
@@ -93,5 +105,59 @@ describe("percentOfFloor", () => {
 
   it("rejects an amount that is not cents", () => {
     expect(() => percentOfFloor(1.5, 50)).toThrow(RangeError);
+  });
+
+  it("refuses amounts whose scaled product leaves the safe-integer range", () => {
+    expect(() => percentOfFloor(Number.MAX_SAFE_INTEGER, 50)).toThrow(RangeError);
+  });
+
+  it("always returns a safe integer for prices 0..5000 and percents 0..100", () => {
+    for (let amount = 0; amount <= 5000; amount++) {
+      for (let percent = 0; percent <= 100; percent++) {
+        const result = percentOfFloor(amount, percent);
+        if (!Number.isSafeInteger(result)) {
+          expect.fail(`percentOfFloor(${amount}, ${percent}) = ${result}`);
+        }
+      }
+    }
+  });
+});
+
+describe("integer-only source", () => {
+  const srcDir = join(fileURLToPath(import.meta.url), "..");
+  const sources = readdirSync(srcDir)
+    .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))
+    .map((name) => [name, readFileSync(join(srcDir, name), "utf8")] as const);
+
+  // Comments and string contents are not arithmetic, so drop them before scanning.
+  const codeOnly = (source: string): string =>
+    source
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "")
+      .replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g, '""');
+
+  it("scans the package sources", () => {
+    expect(sources.map(([name]) => name)).toEqual(expect.arrayContaining(["money.ts", "offers.ts"]));
+  });
+
+  it.each([
+    ["Math.floor(", /Math\.floor\(/],
+    ["Math.round(", /Math\.round\(/],
+    ["Math.ceil(", /Math\.ceil\(/],
+    ["Math.trunc(", /Math\.trunc\(/],
+    ["toFixed(", /toFixed\(/],
+    ["parseFloat(", /parseFloat\(/],
+    ["a float literal", /\b\d+\.\d+\b/],
+  ])("uses no %s", (_label, pattern) => {
+    const offenders = sources.filter(([, source]) => pattern.test(codeOnly(source))).map(([name]) => name);
+    expect(offenders).toEqual([]);
+  });
+
+  it("divides only in the integer-floor form (x - (x % d)) / d", () => {
+    const floorDivision = /\((\w+) - \(\1 % (\w+)\)\) \/ \2\b/g;
+    const offenders = sources
+      .filter(([, source]) => codeOnly(source).replace(floorDivision, "").includes("/"))
+      .map(([name]) => name);
+    expect(offenders).toEqual([]);
   });
 });

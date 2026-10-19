@@ -14,6 +14,9 @@ export function percentOfFloor(amount: Cents, percent: number): Cents {
     throw new RangeError(`percent must be an integer from 0 to 100, got ${percent}`);
   }
   const scaled = amount * percent;
+  if (!Number.isSafeInteger(scaled)) {
+    throw new RangeError(`amount ${amount} is too large to take ${percent}% of exactly`);
+  }
   return (scaled - (scaled % 100)) / 100;
 }
 
@@ -21,12 +24,12 @@ export function formatCents(value: Cents, currency = "USD", locale = "en-US"): s
   assertCents(value);
   const units = (value - (value % 100)) / 100;
   const minor = value % 100;
-  const formatter = new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const minorDigits = new Intl.NumberFormat(locale, { style: "currency", currency }).resolvedOptions()
+    .maximumFractionDigits;
+  if (minorDigits !== 2) {
+    throw new RangeError(`${currency} does not have 2 minor digits, so it cannot be formatted from cents`);
+  }
+  const formatter = new Intl.NumberFormat(locale, { style: "currency", currency });
   // Format the whole units as a BigInt (always ".00"), then splice in the exact minor digits,
   // so no fractional number is ever created.
   return formatter
