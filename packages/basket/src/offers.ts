@@ -1,5 +1,5 @@
 import type { Product, ProductCode } from "./catalogue";
-import type { Cents } from "./money";
+import { percentOfFloor, type Cents } from "./money";
 
 export interface Offer {
   readonly description: string;
@@ -37,7 +37,9 @@ export class BuyOneGetNextDiscounted implements Offer {
     if (first === undefined) return 0;
     const price = first.price;
     // The discounted price rounds down, so the discount itself rounds up (3295 at 50% -> 1648 off).
-    const discountedPrice = Math.floor((price * (100 - this.percentOff)) / 100);
-    return Math.floor(matching.length / 2) * (price - discountedPrice);
+    const discountedPrice = percentOfFloor(price, 100 - this.percentOff);
+    const count = matching.length;
+    const pairs = (count - (count % 2)) / 2;
+    return pairs * (price - discountedPrice);
   }
 }

@@ -32,6 +32,13 @@ describe("BuyOneGetNextDiscounted", () => {
     expect(offer.discountFor([blue, blue])).toBe(795);
   });
 
+  it("rounds the discounted price down for odd prices", () => {
+    const odd: Product = { code: "X01", name: "Odd Widget", price: 199 };
+    const offer = new BuyOneGetNextDiscounted({ productCode: "X01", percentOff: 50 });
+    expect(offer.discountFor([odd, odd])).toBe(100);
+    expect(offer.discountFor([odd, odd, odd, odd, odd])).toBe(200);
+  });
+
   it("builds a default description", () => {
     expect(halfPriceRed.description).toBe("Buy one R01, get the second 50% off");
     expect(new BuyOneGetNextDiscounted({ productCode: "B01", percentOff: 100 }).description).toBe(
