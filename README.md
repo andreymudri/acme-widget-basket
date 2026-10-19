@@ -98,9 +98,13 @@ decimal amounts exactly, and an error of one cent in a total is a real bug.
 - `formatCents` formats the whole units as a `BigInt` through `Intl.NumberFormat` and splices
   in the cents digits as text. It throws for currencies that do not have exactly 2 minor
   digits (for example JPY or KWD), because cents could not be formatted exactly for them.
-- A test in `money.test.ts` scans the package source and fails if float-producing code comes
-  back: `Math.floor`, `Math.round`, `Math.ceil`, `Math.trunc`, `toFixed`, `parseFloat`, float
-  literals, or any division not in the integer-floor form.
+- A test in `money.test.ts` scans `packages/basket/src` and `apps/web/src` and fails if
+  float-producing code comes back. It reports calls to `Math.floor`, `Math.round`, `Math.ceil`,
+  `Math.trunc`, `toFixed` and `parseFloat`, float literals (`0.5`, `.5`, `5.`, `1e-2`), and
+  divisions, including inside template-literal and JSX expressions, unless they are written as
+  `(x - (x % d)) / d`. It is a backstop, not a proof. The primary guarantee is the money
+  functions' own tests: `percentOfFloor` is checked across a range of inputs, and a test checks
+  that `formatCents` never hands a non-integer to `Intl`.
 
 ## Assumptions
 
@@ -137,3 +141,8 @@ Known limitations:
 - `formatCents` writes the cents with Latin digits. A locale with another numbering system,
   such as `ar-EG`, would mix scripts in one amount. All output today is `en-US`.
 - No removing items from a basket, and no persistence or API, as above.
+- The float guard is a tokenizer, not a parser, so some shapes get past it: a negative
+  exponent such as `x * 10 ** -2`, or a call wrapped around the floor form, such as
+  `f(x - (x % d)) / d`. It does not understand regex literals (it reports the slashes as
+  divisions) or generic arrow functions in `.tsx` files (it fails with an unterminated JSX
+  error), so code using them would need the guard extended.
