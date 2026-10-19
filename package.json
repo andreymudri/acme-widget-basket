@@ -1,0 +1,14 @@
+{
+  "name": "acme-widget-co",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.22.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "dev": "pnpm --filter @acme/web dev",
+    "build": "pnpm --filter @acme/web build",
+    "basket": "pnpm --filter @acme/basket --silent cli"
+  }
+}
